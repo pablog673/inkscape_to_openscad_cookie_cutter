@@ -1,10 +1,6 @@
 from __future__ import division
 from math import sqrt, cos, sin, acos, degrees, radians, log
-try:
-    from collections.abc import MutableSequence  
-except ImportError:
-    from collections import MutableSequence
-
+from collections import MutableSequence
 
 # This file contains classes for the different types of SVG path segments as
 # well as a Path object that contains a sequence of path segments.
@@ -87,8 +83,11 @@ class Segment(object):
         return points
 
 class Line(Segment):
-    def __init__(self, start, end):
-        super(Line, self).__init__(start,end)
+    def __init__(self, start, end, scaler = lambda z:z):
+        super(Line, self).__init__(scaler(start),scaler(end))
+        self.start = start
+        self.end = end
+        #print(start)
 
     def __repr__(self):
         return 'Line(start=%s, end=%s)' % (self.start, self.end)
@@ -120,8 +119,10 @@ class Line(Segment):
 
 
 class CubicBezier(Segment):
-    def __init__(self, start, control1, control2, end):
-        super(CubicBezier, self).__init__(start,end)
+    def __init__(self, start, control1, control2, end,scaler=lambda z:z):
+        super(CubicBezier, self).__init__(scaler(start),scaler(end))
+        self.start=start
+        self.end=end
         self.control1 = control1
         self.control2 = control2
 
@@ -167,8 +168,10 @@ class CubicBezier(Segment):
 
 
 class QuadraticBezier(Segment):
-    def __init__(self, start, control, end):
-        super(QuadraticBezier, self).__init__(start,end)
+    def __init__(self, start, control, end, scaler=lambda z:z):
+        super(QuadraticBezier, self).__init__(scaler(start),scaler(end))
+        self.start=start
+        self.end=end
         self.control = control
 
     def __repr__(self):
@@ -238,19 +241,20 @@ class Arc(Segment):
            large and sweep are 1 or 0 (True/False also work)"""
 
         super(Arc, self).__init__(scaler(start),scaler(end))
-        self.start0 = start
-        self.end0 = end
+        self.start = start
+        self.end = end
         self.radius = radius
         self.rotation = rotation
         self.arc = bool(arc)
         self.sweep = bool(sweep)
         self.scaler = scaler
+        #print(start)
 
         self._parameterize()
         
     def __repr__(self):
-        return 'Arc(start0=%s, radius=%s, rotation=%s, arc=%s, sweep=%s, end0=%s, scaler=%s)' % (
-               self.start0, self.radius, self.rotation, self.arc, self.sweep, self.end0, self.scaler)
+        return 'Arc(start=%s, radius=%s, rotation=%s, arc=%s, sweep=%s, end=%s, scaler=%s)' % (
+               self.start, self.radius, self.rotation, self.arc, self.sweep, self.end, self.scaler)
 
     def __eq__(self, other):
         if not isinstance(other, Arc):
@@ -270,8 +274,8 @@ class Arc(Segment):
 
         cosr = cos(radians(self.rotation))
         sinr = sin(radians(self.rotation))
-        dx = (self.start0.real - self.end0.real) / 2
-        dy = (self.start0.imag - self.end0.imag) / 2
+        dx = (self.start.real - self.end.real) / 2
+        dy = (self.start.imag - self.end.imag) / 2
         x1prim = cosr * dx + sinr * dy
         x1prim_sq = x1prim * x1prim
         y1prim = -sinr * dx + cosr * dy
@@ -300,9 +304,9 @@ class Arc(Segment):
         cyprim = -c * ry * x1prim / rx
 
         self.center = complex((cosr * cxprim - sinr * cyprim) +
-                              ((self.start0.real + self.end0.real) / 2),
+                              ((self.start.real + self.end.real) / 2),
                               (sinr * cxprim + cosr * cyprim) +
-                              ((self.start0.imag + self.end0.imag) / 2))
+                              ((self.start.imag + self.end.imag) / 2))
 
         ux = (x1prim - cxprim) / rx
         uy = (y1prim - cyprim) / ry
@@ -590,7 +594,7 @@ class Path(MutableSequence):
 
     def d(self):
         if self.closed:
-            segments = self[:-1]
+            segments = self[:]
         else:
             segments = self[:]
 

@@ -1,7 +1,7 @@
 # SVG Path specification parser
 
 import re
-from . import path
+from . import path1
 import xml.etree.ElementTree as ET
 import re
 import math
@@ -10,7 +10,7 @@ COMMANDS = set('MmZzLlHhVvCcSsQqTtAa')
 UPPERCASE = set('MZLHVCSQTA')
 
 COMMAND_RE = re.compile("([MmZzLlHhVvCcSsQqTtAa])")
-FLOAT_RE = re.compile(r"[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?")
+FLOAT_RE = re.compile("[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?")
 
 SVG_COLORS = {
 "aliceblue": (0.941176,0.972549,1),
@@ -235,7 +235,6 @@ def parse_path(pathdef, current_pos=0j, matrix = None, svgState=None):
                 current_pos = pos
             else:
                 current_pos += pos
-
             # when M is called, reset start_pos
             # This behavior of Z is defined in svg spec:
             # http://www.w3.org/TR/SVG/paths.html#PathDataClosePathCommand
@@ -249,7 +248,7 @@ def parse_path(pathdef, current_pos=0j, matrix = None, svgState=None):
         elif command == 'Z':
             # Close path
             if current_pos != start_pos:
-                segments.append(path.Line(scaler(current_pos), scaler(start_pos)))
+                segments.append(path.Line(current_pos, start_pos,scaler))
             if len(segments):
                 segments.closed = True
             current_pos = start_pos
@@ -262,7 +261,7 @@ def parse_path(pathdef, current_pos=0j, matrix = None, svgState=None):
             pos = float(x) + float(y) * 1j
             if not absolute:
                 pos += current_pos
-            segments.append(path.Line(scaler(current_pos), scaler(pos)))
+            segments.append(path.Line(current_pos, pos, scaler))
             current_pos = pos
 
         elif command == 'H':
@@ -270,7 +269,8 @@ def parse_path(pathdef, current_pos=0j, matrix = None, svgState=None):
             pos = float(x) + current_pos.imag * 1j
             if not absolute:
                 pos += current_pos.real
-            segments.append(path.Line(scaler(current_pos), scaler(pos)))
+            
+            segments.append(path.Line(current_pos, pos, scaler))
             current_pos = pos
 
         elif command == 'V':
@@ -278,20 +278,20 @@ def parse_path(pathdef, current_pos=0j, matrix = None, svgState=None):
             pos = current_pos.real + float(y) * 1j
             if not absolute:
                 pos += current_pos.imag * 1j
-            segments.append(path.Line(scaler(current_pos), scaler(pos)))
+            segments.append(path.Line(current_pos, pos, scaler))
             current_pos = pos
 
         elif command == 'C':
             control1 = float(elements.pop()) + float(elements.pop()) * 1j
             control2 = float(elements.pop()) + float(elements.pop()) * 1j
             end = float(elements.pop()) + float(elements.pop()) * 1j
-
+            
             if not absolute:
                 control1 += current_pos
                 control2 += current_pos
                 end += current_pos
 
-            segments.append(path.CubicBezier(scaler(current_pos), scaler(control1), scaler(control2), scaler(end)))
+            segments.append(path.CubicBezier(current_pos, control1, control2, end, scaler))
             current_pos = end
 
         elif command == 'S':
@@ -316,7 +316,7 @@ def parse_path(pathdef, current_pos=0j, matrix = None, svgState=None):
                 control2 += current_pos
                 end += current_pos
 
-            segments.append(path.CubicBezier(scaler(current_pos), control1, scaler(control2), scaler(end)))
+            segments.append(path.CubicBezier(current_pos, control1, control2, end, scaler))
             current_pos = end
 
         elif command == 'Q':
@@ -327,7 +327,7 @@ def parse_path(pathdef, current_pos=0j, matrix = None, svgState=None):
                 control += current_pos
                 end += current_pos
 
-            segments.append(path.QuadraticBezier(scaler(current_pos), scaler(control), scaler(end)))
+            segments.append(path.QuadraticBezier(current_pos, control, end, scaler))
             current_pos = end
 
         elif command == 'T':
@@ -350,7 +350,7 @@ def parse_path(pathdef, current_pos=0j, matrix = None, svgState=None):
             if not absolute:
                 end += current_pos
 
-            segments.append(path.QuadraticBezier(scaler(current_pos), control, scaler(end)))
+            segments.append(path.QuadraticBezier(current_pos, control, end, scaler))
             current_pos = end
 
         elif command == 'A':
@@ -371,7 +371,7 @@ def parse_path(pathdef, current_pos=0j, matrix = None, svgState=None):
 def path_from_ellipse(x, y, rx, ry, matrix, state):
     arc = "M %.9f %.9f " % (x-rx,y)
     arc += "A %.9f %.9f 0 0 1 %.9f %.9f " % (rx, ry, x+rx,y) 
-    arc += "A %.9f %.9f 0 0 1 %.9f %.9f" % (rx, ry, x-rx,y) 
+    arc += "A %.9f %.9f 0 0 1 %.9f %.9f Z" % (rx, ry, x-rx,y) 
     return parse_path(arc, matrix=matrix, svgState=state)
 
 def path_from_rect(x,y,w,h,rx,ry, matrix,state):
@@ -573,7 +573,7 @@ def getPathsFromSVG(svg):
             p = ' '.join(['M', points[0], points[1], 'L'] + points[2:])
             path = parse_path(p, matrix=matrix, svgState=state)
             paths.append(path)
-        elif tag == 'rect':
+        elif tag == 'frect':
             x = getFloat('x')
             y = getFloat('y')
             w = getFloat('width')
@@ -592,7 +592,7 @@ def getPathsFromSVG(svg):
                     if tag.strip().lower().endswith("}href"):
                         link = tree.attrib[tag]
                         break
-                if link is None or link[0] != '#':
+                if link is None or link[0] is not '#':
                     raise KeyError
                 source = savedElements[link[1:]]
                 x = 0
