@@ -1,9 +1,10 @@
 import sys
 import svgpath.parser as parser
 
-# colors: RED   = outer wall
-#         GREEN = inner wall (holes in the cookie)
-#         BLACK = inside feature (not cutting all the way)
+# colors: RED   = cutter wall
+#         GREEN = cutter wall (inner flare)
+#         BLACK = feature
+#	  BLUE  = tiny_feature
 #         CYAN  = support
 
 
